@@ -38,6 +38,41 @@ Flex Launcher is a customizable application launcher and front end designed with
 
 Flex Launcher is compatible with both Windows and Linux (including Raspberry Pi devices).
 
+
+## Project Helios
+
+> **This repository is a fork of the excellent Flex Launcher project by ComplexLogic.**
+>
+> Full credit for the original launcher belongs to the Flex Launcher contributors.
+> This fork exists to develop features and improvements required by the
+> Project Helios media platform while remaining as compatible as practical with
+> upstream Flex Launcher.
+
+**Original Project**  
+https://github.com/complexlogic/flex-launcher
+
+**Project Helios**  
+https://github.com/SCIFENEFICS/project-helios
+
+### Current Helios Enhancements
+
+#### User Interface
+- Independent configuration of clock and date font sizes (`ClockDateFontSize`)
+- Improved rounded highlight rendering
+- Fixed highlight outline clipping
+- Eliminated thick outline artifacts around curved highlights
+
+#### Configuration
+- New `ClockDateFontSize` configuration option
+- Backwards compatible with existing configuration files
+
+### Contributing Upstream
+
+Where appropriate, bug fixes and generally useful improvements developed for
+Project Helios may be contributed back to the original Flex Launcher project
+through pull requests.
+
+
 ## Screenshots
 ![Screenshot 1](docs/assets/screenshots/screenshot1.png "Screenshot 1")
 
