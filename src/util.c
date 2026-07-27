@@ -168,6 +168,16 @@ int config_handler(void *user, const char *section, const char *name, const char
             if (max_buttons > 0)
                 config.max_buttons = (unsigned int) max_buttons;
         }
+        else if (MATCH(name, SETTING_ROWS)) {
+            int rows = atoi(value);
+            if (rows > 0)
+                config.rows = (unsigned int) rows;
+        }
+        else if (MATCH(name, SETTING_ROW_SPACING)) {
+            int row_spacing = atoi(value);
+            if (row_spacing >= 0)
+                config.row_spacing = row_spacing;
+        }
         else if (MATCH(name, SETTING_ICON_SIZE)) {
             Uint16 icon_size = (Uint16) atoi(value);
             if (icon_size >= MIN_ICON_SIZE && icon_size <= MAX_ICON_SIZE)
@@ -890,16 +900,31 @@ void convert_percent_to_int(char *string, int *result, int max_value)
 // A function to make sure all settings are in their correct range
 void validate_settings(Geometry *geo)
 {
-    // Reduce number of buttons if they can't all fit on screen
-    if (config.icon_size * config.max_buttons > (unsigned int) geo->screen_width) {
-        unsigned int i;
-        for (i = config.max_buttons; i * config.icon_size > (unsigned int) geo->screen_width && i > 0; i--);
+
+    // Keep row count within the number of buttons displayed per page
+    if (config.rows > config.max_buttons)
+        config.rows = config.max_buttons;
+
+    // Reduce the number of buttons if the grid columns cannot fit onscreen
+    unsigned int columns = DIV_ROUND_UP(config.max_buttons, config.rows);
+    if (config.icon_size * columns > (unsigned int) geo->screen_width) {
+        unsigned int max_columns;
+
+        for (max_columns = columns;
+             max_columns * config.icon_size > (unsigned int) geo->screen_width &&
+             max_columns > 0;
+             max_columns--);
+
+        unsigned int max_buttons = max_columns * config.rows;
+
         log_error(
-            "Not enough screen space for %i buttons, reducing to %i", 
-            config.max_buttons, 
-            i
+            "Not enough screen space for %i grid columns, reducing MaxButtons from %i to %i",
+            columns,
+            config.max_buttons,
+            max_buttons
         );
-        config.max_buttons = i; 
+
+        config.max_buttons = max_buttons;
     }
 
     if (!config.titles_enabled)
@@ -974,7 +999,8 @@ void validate_settings(Geometry *geo)
         config.highlight_hpadding = config.icon_spacing / 2;
 
     // Reduce icon spacing and highlight padding if too large to fit onscreen
-    unsigned int required_length = calculate_width((int) config.max_buttons,
+    unsigned int layout_columns = DIV_ROUND_UP(config.max_buttons, config.rows);
+    unsigned int required_length = calculate_width((int) layout_columns,
                                        config.icon_spacing,
                                        config.icon_size,
                                        config.highlight_hpadding
@@ -986,7 +1012,7 @@ void validate_settings(Geometry *geo)
             highlight_hpadding = (highlight_hpadding * 9) / 10;
         if (icon_spacing > 0)
             icon_spacing = (icon_spacing * 9) / 10;
-        required_length = calculate_width((int) config.max_buttons,icon_spacing,config.icon_size,highlight_hpadding);
+        required_length = calculate_width((int) layout_columns, icon_spacing, config.icon_size, highlight_hpadding);
     }
     if (config.highlight_hpadding != highlight_hpadding) {
         log_error("Highlight padding value %i too large to fit screen, shrinking to %i",
