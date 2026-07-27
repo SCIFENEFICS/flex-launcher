@@ -304,6 +304,7 @@ typedef struct {
     SDL_Color clock_font_color;
     char clock_opacity[PERCENT_MAX_CHARS];
     unsigned int clock_font_size;
+    unsigned int clock_date_font_size;
     bool clock_shadows;
     SDL_Color clock_shadow_color;
     TimeFormat clock_time_format;

@@ -9,7 +9,8 @@ typedef struct {
     SDL_Texture *date_texture;
     SDL_Rect time_rect;
     SDL_Rect date_rect;
-    TextInfo text_info;
+    TextInfo time_text_info;
+    TextInfo date_text_info;
     time_t current_time;
     struct tm *time_info;
     int x_offset_time;

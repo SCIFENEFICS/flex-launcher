@@ -63,18 +63,18 @@ static void calculate_text_metrics(TTF_Font *font, const char *text, int *h, int
 // A function to calculate the spacing and offsets of the clock text
 static void calculate_clock_geometry(Clock *clk)
 {
-    int line_skip = TTF_FontLineSkip(clk->text_info.font);
+    int line_skip = TTF_FontLineSkip(clk->time_text_info.font);
     int h_time, h_date;
 
     // Calculate text height and x offset
-    calculate_text_metrics(clk->text_info.font, 
+    calculate_text_metrics(clk->time_text_info.font, 
         clk->time_string,
         &h_time,
         &clk->x_offset_time
     );
 
     if (config.clock_show_date) {
-        calculate_text_metrics(clk->text_info.font, 
+        calculate_text_metrics(clk->date_text_info.font, 
             clk->date_string,
             &h_date,
             &clk->x_offset_date
@@ -191,7 +191,7 @@ static void calculate_clock_positioning(Clock *clk)
 void init_clock(Clock *clk)
 {
     // Initialize clock structure
-    clk->text_info = (TextInfo) {
+    clk->time_text_info = (TextInfo) {
         .font = NULL,
         .font_size = (int) config.clock_font_size,
         .font_path = &config.clock_font_path,
@@ -199,22 +199,40 @@ void init_clock(Clock *clk)
         .shadow = config.clock_shadows,
         .oversize_mode = OVERSIZE_NONE
     };
+    clk->date_text_info = clk->time_text_info;
+    clk->date_text_info.font = NULL;
+    clk->date_text_info.font_size = (int) config.clock_date_font_size;
+
     clk->time_format = config.clock_time_format;
     clk->date_format = config.clock_date_format;
     clk->time_info = NULL;
     if (config.clock_shadows) {
-        clk->text_info.shadow_color = &config.clock_shadow_color;
-        calculate_shadow_alpha(clk->text_info);
+        clk->time_text_info.shadow_color = &config.clock_shadow_color;
+        clk->date_text_info.shadow_color = &config.clock_shadow_color;
+        calculate_shadow_alpha(clk->time_text_info);
+        calculate_shadow_alpha(clk->date_text_info);
     }
-    else
-        clk->text_info.shadow_color = NULL;
+    else {
+        clk->time_text_info.shadow_color = NULL;
+        clk->date_text_info.shadow_color = NULL;
+    }
     
-    // Load the font
-    int error = load_font(&clk->text_info, FILENAME_DEFAULT_CLOCK_FONT);
+    // Load the fonts
+    int error = load_font(&clk->time_text_info, FILENAME_DEFAULT_CLOCK_FONT);
     if (error) {
         config.clock_enabled = false;
         return;
     }
+
+    if (config.clock_show_date) {
+        error = load_font(&clk->date_text_info, FILENAME_DEFAULT_CLOCK_FONT);
+        if (error) {
+            config.clock_enabled = false;
+            return;
+        }
+    }
+
+    printf("TIME_FONT=%d DATE_FONT=%d\n", clk->time_text_info.font_size, clk->date_text_info.font_size);
 
     // Get time and format it into a string
     get_time(clk);
@@ -231,14 +249,14 @@ void init_clock(Clock *clk)
     // Render the time and date
     format_time(clk);
     clk->time_texture = render_text_texture(clk->time_string,
-                            &clk->text_info,
+                            &clk->time_text_info,
                             &clk->time_rect,
                             NULL
                         );
     if (config.clock_show_date) {
         format_date(clk);
         clk->date_texture = render_text_texture(clk->date_string,
-                                &clk->text_info,
+                                &clk->date_text_info,
                                 &clk->date_rect,
                                 NULL
                             );
@@ -256,14 +274,14 @@ void render_clock(Clock *clk)
 {
     format_time(clk);
     clk->time_surface = render_text(clk->time_string,
-                            &clk->text_info,
+                            &clk->time_text_info,
                             &clk->time_rect,
                             NULL
                         );
     if (clk->render_date) {
         format_date(clk);
         clk->date_surface = render_text(clk->date_string,
-                                &clk->text_info,
+                                &clk->date_text_info,
                                 &clk->date_rect,
                                 NULL
                             );

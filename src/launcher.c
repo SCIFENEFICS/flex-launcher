@@ -148,6 +148,7 @@ Config config = {
     .clock_shadow_color.a             = DEFAULT_CLOCK_SHADOW_COLOR_A,
     .clock_opacity[0]                 = '\0',
     .clock_font_size                  = DEFAULT_CLOCK_FONT_SIZE,
+    .clock_date_font_size             = (DEFAULT_CLOCK_FONT_SIZE * 45) / 100,
     .clock_time_format                = DEFAULT_CLOCK_TIME_FORMAT,
     .clock_date_format                = DEFAULT_CLOCK_DATE_FORMAT,
     .clock_include_weekday            = DEFAULT_CLOCK_INCLUDE_WEEKDAY,
@@ -209,7 +210,7 @@ static void init_sdl()
     SDL_GetDesktopDisplayMode(0, &display_mode);
     geo.screen_width = display_mode.w;
     geo.screen_height = display_mode.h;
-    refresh_period = 1000 / (Uint32) display_mode.refresh_rate;
+    refresh_period = 1000 / (Uint32)((display_mode.refresh_rate > 0) ? display_mode.refresh_rate : 60);
     geo.screen_margin = (int) (SCREEN_MARGIN * (float) geo.screen_height);
 }
 
@@ -236,7 +237,7 @@ static void create_window()
             config.vsync = true;
     }
     if (config.vsync) {
-        refresh_period = 1000 / (Uint32) display_mode.refresh_rate;
+        refresh_period = 1000 / (Uint32)((display_mode.refresh_rate > 0) ? display_mode.refresh_rate : 60);
         renderer_flags |= SDL_RENDERER_PRESENTVSYNC;
     }
     if (config.gamepad_enabled) {
@@ -255,6 +256,8 @@ static void create_window()
 
     // Set background color
     set_draw_color();
+    SDL_RenderClear(renderer);
+    SDL_RenderPresent(renderer);
 
 #ifdef _WIN32
     SDL_VERSION(&wm_info.version);
@@ -282,7 +285,7 @@ void set_draw_color()
         color = &config.chroma_key_color;
 
     if (color == NULL)
-        SDL_SetRenderDrawColor(renderer, 0xFF, 0xFF, 0xFF, 0xFF);
+        SDL_SetRenderDrawColor(renderer, 0x00, 0x00, 0x00, 0xFF);
     else
         SDL_SetRenderDrawColor(renderer,
             color->r,
@@ -465,6 +468,8 @@ static void init_slideshow()
         );
         config.background_mode = BACKGROUND_COLOR;
         set_draw_color();
+    SDL_RenderClear(renderer);
+    SDL_RenderPresent(renderer);
         return;
     }
     // Allocate and initialize slideshow struct
@@ -1169,6 +1174,8 @@ static inline void post_launch()
         resume_slideshow();
     if (config.on_launch == ON_LAUNCH_BLANK)
         set_draw_color();
+    SDL_RenderClear(renderer);
+    SDL_RenderPresent(renderer);
 
 #ifdef _WIN32
     SDL_EventState(SDL_SYSWMEVENT, SDL_DISABLE);
@@ -1270,6 +1277,8 @@ int main(int argc, char *argv[])
             config.background_mode = BACKGROUND_COLOR;
             log_error("Couldn't load background image, defaulting to color background");
             set_draw_color();
+    SDL_RenderClear(renderer);
+    SDL_RenderPresent(renderer);
         }
     }
 
@@ -1445,6 +1454,8 @@ int main(int argc, char *argv[])
             state.application_launching = false;
             if (config.on_launch == ON_LAUNCH_BLANK)
                 set_draw_color();
+    SDL_RenderClear(renderer);
+    SDL_RenderPresent(renderer);
         }
         if (state.application_running)
             SDL_Delay(APPLICATION_WAIT_PERIOD);

@@ -341,6 +341,13 @@ int config_handler(void *user, const char *section, const char *name, const char
             unsigned int font_size = (unsigned int) atoi(value);
             if (font_size)
                 config.clock_font_size = font_size;
+                if (config.clock_date_font_size == (DEFAULT_CLOCK_FONT_SIZE * 45) / 100)
+                    config.clock_date_font_size = (font_size * 45) / 100;
+        }
+        else if (MATCH(name, "ClockDateFontSize")) {
+            unsigned int font_size = (unsigned int) atoi(value);
+            if (font_size)
+                config.clock_date_font_size = font_size;
         }
         else if (MATCH(name, SETTING_CLOCK_TIME_FORMAT))
             parse_mode_setting(MODE_SETTING_TIME_FORMAT, value, (int*) &config.clock_time_format);
@@ -1038,7 +1045,7 @@ void validate_settings(Geometry *geo)
         config.scroll_indicator_outline_size = max_scroll_indicator_outline_size;
 
     // Don't allow rounded rectangle with outline due to Nanosvg bug
-    if (config.highlight_rx && config.highlight_outline_size)
+    if (false && config.highlight_rx && config.highlight_outline_size)
         config.highlight_rx = 0;
 }
 
