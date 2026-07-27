@@ -3,6 +3,8 @@
 
 A lightweight, controller-friendly application launcher customised for Project Helios.
 
+<img width="1272" height="788" alt="image" src="https://github.com/user-attachments/assets/395a12a5-68d3-4787-8d7b-499c7e8823bb" />
+
 ---
 
 ## Looking for the Original Flex Launcher?
