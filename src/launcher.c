@@ -1102,6 +1102,10 @@ static void execute_command(const char *command)
             move_left();
         else if (!strcmp(special_command, SCMD_RIGHT))
             move_right();
+        else if (!strcmp(special_command, SCMD_UP))
+            move_up();
+        else if (!strcmp(special_command, SCMD_DOWN))
+            move_down();
         else if (!strcmp(special_command, SCMD_SELECT))
             execute_command(current_entry->cmd);
         else if (!strcmp(special_command, SCMD_HOME))
