@@ -206,6 +206,59 @@ SDL_Texture *rasterize_svg(char *buffer, int w, int h, SDL_Rect *rect)
     return texture;
 }
 
+// A function to rasterize an SVG directly from a file
+SDL_Texture *rasterize_svg_from_file(
+    const char *path,
+    int w,
+    int h,
+    SDL_Rect *rect
+)
+{
+    FILE *file = fopen(path, "rb");
+    if (file == NULL) {
+        log_error("Could not open SVG file %s", path);
+        return NULL;
+    }
+
+    if (fseek(file, 0, SEEK_END) != 0) {
+        fclose(file);
+        log_error("Could not seek SVG file %s", path);
+        return NULL;
+    }
+
+    long size = ftell(file);
+    if (size < 0) {
+        fclose(file);
+        log_error("Could not determine SVG file size %s", path);
+        return NULL;
+    }
+
+    rewind(file);
+
+    char *buffer = malloc((size_t) size + 1);
+    if (buffer == NULL) {
+        fclose(file);
+        log_error("Could not allocate SVG file buffer.");
+        return NULL;
+    }
+
+    size_t bytes_read = fread(buffer, 1, (size_t) size, file);
+    fclose(file);
+
+    if (bytes_read != (size_t) size) {
+        free(buffer);
+        log_error("Could not read SVG file %s", path);
+        return NULL;
+    }
+
+    buffer[size] = '\0';
+
+    SDL_Texture *texture = rasterize_svg(buffer, w, h, rect);
+    free(buffer);
+
+    return texture;
+}
+
 // A function to render the highlight for the buttons
 SDL_Texture *render_highlight(int width, int height, SDL_Rect *rect)
 {

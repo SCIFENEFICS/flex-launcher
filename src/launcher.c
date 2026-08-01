@@ -84,6 +84,15 @@ Config config = {
     .background_overlay_opacity[0]    = '\0',
     .highlight                        = true,
     .icon_size                        = DEFAULT_ICON_SIZE,
+    .icon_shadows                     = DEFAULT_ICON_SHADOWS,
+    .icon_shadow_color.r              = DEFAULT_ICON_SHADOW_COLOR_R,
+    .icon_shadow_color.g              = DEFAULT_ICON_SHADOW_COLOR_G,
+    .icon_shadow_color.b              = DEFAULT_ICON_SHADOW_COLOR_B,
+    .icon_shadow_color.a              = 0xFF,
+    .icon_shadow_opacity[0]           = '\0',
+    .icon_shadow_offset_x             = DEFAULT_ICON_SHADOW_OFFSET_X,
+    .icon_shadow_offset_y             = DEFAULT_ICON_SHADOW_OFFSET_Y,
+    .icon_shadow_blur                 = DEFAULT_ICON_SHADOW_BLUR,
     .highlight_fill_color.r           = DEFAULT_HIGHLIGHT_FILL_COLOR_R,
     .highlight_fill_color.g           = DEFAULT_HIGHLIGHT_FILL_COLOR_G,
     .highlight_fill_color.b           = DEFAULT_HIGHLIGHT_FILL_COLOR_B,
@@ -104,7 +113,14 @@ Config config = {
     .title_opacity[0]                 = '\0',
     .highlight_fill_opacity[0]        = '\0',
     .highlight_outline_opacity[0]     = '\0',
-    .vcenter[0]             = '\0',
+    .vcenter[0]                       = '\0',
+    .logo_enabled                     = DEFAULT_LOGO_ENABLED,
+    .logo_image                       = NULL,
+    .logo_alignment                   = ALIGNMENT_LEFT,
+    .logo_margin                      = DEFAULT_LOGO_MARGIN,
+    .logo_width                       = DEFAULT_LOGO_WIDTH,
+    .logo_height                      = DEFAULT_LOGO_HEIGHT,
+    .logo_opacity[0]                  = '\0',
     .icon_spacing_str[0]              = '\0',
     .scroll_indicators                = DEFAULT_SCROLL_INDICATORS,
     .scroll_indicator_fill_color.r    = DEFAULT_SCROLL_INDICATOR_FILL_COLOR_R,
@@ -169,6 +185,10 @@ SDL_Window *window                    = NULL;
 SDL_Renderer *renderer                = NULL;
 SDL_Texture *background_texture       = NULL;
 SDL_Texture *background_overlay       = NULL;
+SDL_Texture *logo_texture             = NULL;
+SDL_Rect logo_rect                    = {0, 0, 0, 0};
+Uint8 logo_alpha                      = 255;
+int page_return_row                   = 0;
 Menu *default_menu                    = NULL;
 Menu *current_menu                    = NULL;
 Entry *current_entry                  = NULL;
@@ -710,50 +730,96 @@ static void move_left(void)
     int position = (int) current_menu->highlight_position;
     int column = position % geo.columns;
 
-    // Move left within the current row
+    /* Move normally within the current row. */
     if (column > 0) {
         current_menu->highlight_position--;
         current_entry = current_entry->previous;
         sync_highlight();
+        return;
     }
 
-    // From the first entry, load the previous page or wrap to the final page
-    else if (position == 0 && (current_menu->page > 0 || config.wrap_entries)) {
-        unsigned int buttons;
-        current_entry = current_entry->previous;
+    /*
+     * Return to the previous page and select its rightmost item in
+     * the same row that was used to enter the current page.
+     */
+    if (current_menu->page > 0) {
+        unsigned int previous_page = current_menu->page - 1;
+        unsigned int first_index = previous_page * config.max_buttons;
+        unsigned int buttons =
+            current_menu->num_entries - first_index;
 
-        if (current_entry) {
+        if (buttons > config.max_buttons)
             buttons = config.max_buttons;
-            current_menu->root_entry = advance_entries(
-                current_menu->root_entry,
-                (int) buttons,
-                DIRECTION_LEFT
+
+        current_menu->root_entry = advance_entries(
+            current_menu->first_entry,
+            (int) first_index,
+            DIRECTION_RIGHT
+        );
+
+        current_menu->page = previous_page;
+
+        calculate_button_geometry(
+            current_menu->root_entry,
+            (int) buttons
+        );
+
+        int target_position =
+            page_return_row * geo.columns +
+            (geo.columns - 1);
+
+        if (target_position >= (int) buttons)
+            target_position = (int) buttons - 1;
+
+        current_menu->highlight_position =
+            (unsigned int) target_position;
+
+        current_entry = advance_entries(
+            current_menu->root_entry,
+            target_position,
+            DIRECTION_RIGHT
+        );
+
+        sync_highlight();
+        return;
+    }
+
+    /* Wrap from the first entry to the final page. */
+    if (position == 0 && config.wrap_entries) {
+        unsigned int num_pages =
+            DIV_ROUND_UP(
+                current_menu->num_entries,
+                config.max_buttons
             );
-            current_menu->page--;
-        }
-        else {
-            current_entry = advance_entries(
-                current_menu->first_entry,
-                (int) current_menu->num_entries - 1,
-                DIRECTION_RIGHT
-            );
 
-            unsigned int num_pages =
-                DIV_ROUND_UP(current_menu->num_entries, config.max_buttons);
+        unsigned int final_page = num_pages - 1;
+        unsigned int first_index =
+            final_page * config.max_buttons;
 
-            current_menu->root_entry = advance_entries(
-                current_menu->root_entry,
-                (int) ((num_pages - 1 - current_menu->page) * config.max_buttons),
-                DIRECTION_RIGHT
-            );
+        unsigned int buttons =
+            current_menu->num_entries - first_index;
 
-            current_menu->page = num_pages - 1;
-            buttons = current_menu->num_entries -
-                      current_menu->page * config.max_buttons;
-        }
+        current_menu->root_entry = advance_entries(
+            current_menu->first_entry,
+            (int) first_index,
+            DIRECTION_RIGHT
+        );
 
-        calculate_button_geometry(current_menu->root_entry, (int) buttons);
+        current_menu->page = final_page;
+
+        calculate_button_geometry(
+            current_menu->root_entry,
+            (int) buttons
+        );
+
         current_menu->highlight_position = buttons - 1;
+
+        current_entry = advance_entries(
+            current_menu->root_entry,
+            (int) buttons - 1,
+            DIRECTION_RIGHT
+        );
+
         sync_highlight();
     }
 }
@@ -763,43 +829,56 @@ static void move_right(void)
 {
     int position = (int) current_menu->highlight_position;
     int column = position % geo.columns;
-    bool has_entry_to_right =
-        column < geo.columns - 1 &&
-        position < geo.num_buttons - 1;
 
-    // Move right within the current row
-    if (has_entry_to_right) {
+    bool at_right_edge = (column == geo.columns - 1);
+    bool next_page_exists =
+        (current_menu->page + 1) * config.max_buttons <
+        current_menu->num_entries;
+
+    /* Move normally within the current row. */
+    if (!at_right_edge && position < geo.num_buttons - 1) {
         current_menu->highlight_position++;
         current_entry = current_entry->next;
         sync_highlight();
+        return;
     }
 
-    // From the right edge of either row, load the next page
-    else if (column == geo.columns - 1 &&
-             (current_menu->page + 1) * config.max_buttons <
-             current_menu->num_entries) {
+    /*
+     * From the right edge of either row, open the next page.
+     * This makes button 4 and button 8 both move to button 9.
+     */
+    if (at_right_edge && next_page_exists) {
+        page_return_row = position / geo.columns;
+
+        unsigned int next_page = current_menu->page + 1;
+        unsigned int first_index = next_page * config.max_buttons;
         unsigned int buttons =
-            current_menu->num_entries -
-            (current_menu->page + 1) * config.max_buttons;
+            current_menu->num_entries - first_index;
 
         if (buttons > config.max_buttons)
             buttons = config.max_buttons;
 
         current_menu->root_entry = advance_entries(
-            current_menu->root_entry,
-            (int) config.max_buttons,
+            current_menu->first_entry,
+            (int) first_index,
             DIRECTION_RIGHT
         );
+
         current_entry = current_menu->root_entry;
-        current_menu->page++;
+        current_menu->page = next_page;
         current_menu->highlight_position = 0;
 
-        calculate_button_geometry(current_menu->root_entry, (int) buttons);
+        calculate_button_geometry(
+            current_menu->root_entry,
+            (int) buttons
+        );
+
         sync_highlight();
+        return;
     }
 
-    // From the final entry, wrap to the beginning
-    else if (position == geo.num_buttons - 1 && config.wrap_entries) {
+    /* Wrap from the final visible entry back to the beginning. */
+    if (position == geo.num_buttons - 1 && config.wrap_entries) {
         current_entry = current_menu->first_entry;
         current_menu->root_entry = current_entry;
         current_menu->highlight_position = 0;
@@ -891,6 +970,10 @@ static void draw_screen()
                 SDL_RenderCopy(renderer, clk->date_texture, NULL, &clk->date_rect);
         }
 
+        // Draw optional interface logo.
+        if (config.logo_enabled && logo_texture != NULL)
+            SDL_RenderCopy(renderer, logo_texture, NULL, &logo_rect);
+
         // Draw highlight
         if (config.highlight)
             SDL_RenderCopy(renderer,
@@ -903,11 +986,80 @@ static void draw_screen()
         Entry *entry = current_menu->root_entry;
         SDL_Texture *icon;
         for (int i = 0; i < geo.num_buttons; i++) {
-            icon = (entry->icon_selected != NULL && i == (int) current_menu->highlight_position) ? entry->icon_selected : entry->icon;
+            icon = (entry->icon_selected != NULL &&
+                    i == (int) current_menu->highlight_position)
+                       ? entry->icon_selected
+                       : entry->icon;
+
+            if (config.icon_shadows && icon != NULL) {
+                SDL_Rect shadow_rect = entry->icon_rect;
+
+                SDL_SetTextureColorMod(
+                    icon,
+                    config.icon_shadow_color.r,
+                    config.icon_shadow_color.g,
+                    config.icon_shadow_color.b
+                );
+
+                int blur = config.icon_shadow_blur;
+                int layers = blur > 0 ? blur : 1;
+                int calculated_alpha =
+                    config.icon_shadow_color.a / (layers + 2);
+
+                Uint8 pass_alpha =
+                    (Uint8) (calculated_alpha < 2 ? 2 : calculated_alpha);
+
+                SDL_SetTextureAlphaMod(icon, pass_alpha);
+
+                /*
+                 * Draw gradually enlarged shadow layers.
+                 * Outer layers extend farther, producing a soft edge,
+                 * while overlapping inner layers keep the shadow visible.
+                 */
+                for (int layer = blur; layer >= 0; layer--) {
+                    int spread = layer;
+
+                    shadow_rect.x =
+                        entry->icon_rect.x +
+                        config.icon_shadow_offset_x -
+                        spread;
+
+                    shadow_rect.y =
+                        entry->icon_rect.y +
+                        config.icon_shadow_offset_y -
+                        spread;
+
+                    shadow_rect.w =
+                        entry->icon_rect.w +
+                        spread * 2;
+
+                    shadow_rect.h =
+                        entry->icon_rect.h +
+                        spread * 2;
+
+                    SDL_RenderCopy(
+                        renderer,
+                        icon,
+                        NULL,
+                        &shadow_rect
+                    );
+                }
+
+                SDL_SetTextureColorMod(icon, 255, 255, 255);
+                SDL_SetTextureAlphaMod(icon, 255);
+            }
+
             SDL_RenderCopy(renderer, icon, NULL, &entry->icon_rect);
+
             if (config.titles_enabled)
-                SDL_RenderCopy(renderer, entry->title_texture, NULL, &entry->text_rect);
-            entry = entry-> next;
+                SDL_RenderCopy(
+                    renderer,
+                    entry->title_texture,
+                    NULL,
+                    &entry->text_rect
+                );
+
+            entry = entry->next;
         }
 
         // Draw screensaver
@@ -1389,6 +1541,80 @@ int main(int argc, char *argv[])
     else if (config.background_mode == BACKGROUND_SLIDESHOW) {
         SDL_Surface *surface = load_next_slideshow_background(slideshow, false);
         background_texture = load_texture(surface);
+    }
+
+    // Load and position the optional interface logo.
+    if (config.logo_enabled) {
+        if (config.logo_image == NULL || config.logo_image[0] == '\0') {
+            log_error("Logo is enabled but LogoImage is not specified");
+            config.logo_enabled = false;
+        }
+        else {
+            const char *extension = strrchr(config.logo_image, '.');
+
+            if (extension != NULL && !strcasecmp(extension, ".svg")) {
+                int requested_height =
+                    config.logo_height > 0
+                        ? (int) config.logo_height
+                        : -1;
+
+                logo_texture = rasterize_svg_from_file(
+                    config.logo_image,
+                    (int) config.logo_width,
+                    requested_height,
+                    &logo_rect
+                );
+            }
+            else {
+                logo_texture = load_texture_from_file(config.logo_image);
+
+                if (logo_texture != NULL) {
+                    int source_width = 0;
+                    int source_height = 0;
+
+                    SDL_QueryTexture(
+                        logo_texture,
+                        NULL,
+                        NULL,
+                        &source_width,
+                        &source_height
+                    );
+
+                    logo_rect.w = (int) config.logo_width;
+
+                    if (config.logo_height > 0) {
+                        logo_rect.h = (int) config.logo_height;
+                    }
+                    else if (source_width > 0) {
+                        logo_rect.h =
+                            (source_height * logo_rect.w) / source_width;
+                    }
+                }
+            }
+
+            if (logo_texture == NULL) {
+                log_error(
+                    "Could not load logo image %s",
+                    config.logo_image
+                );
+                config.logo_enabled = false;
+            }
+            else {
+                SDL_SetTextureAlphaMod(logo_texture, logo_alpha);
+
+                if (config.logo_alignment == ALIGNMENT_RIGHT) {
+                    logo_rect.x =
+                        geo.screen_width -
+                        config.logo_margin -
+                        logo_rect.w;
+                }
+                else {
+                    logo_rect.x = config.logo_margin;
+                }
+
+                logo_rect.y = config.logo_margin;
+            }
+        }
     }
 
     // Initialize screensaver

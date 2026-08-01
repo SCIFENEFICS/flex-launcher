@@ -258,6 +258,12 @@ typedef struct {
     Uint16 icon_size;
     int icon_spacing;
     char icon_spacing_str[PERCENT_MAX_CHARS];
+    bool icon_shadows;
+    SDL_Color icon_shadow_color;
+    char icon_shadow_opacity[PERCENT_MAX_CHARS];
+    int icon_shadow_offset_x;
+    int icon_shadow_offset_y;
+    int icon_shadow_blur;
     bool titles_enabled;
     char *title_font_path; // Path to title TTF font file
     unsigned int title_font_size;
@@ -277,6 +283,13 @@ typedef struct {
     int highlight_vpadding;
     int highlight_hpadding;
     char vcenter[PERCENT_MAX_CHARS];
+    bool logo_enabled;
+    char *logo_image;
+    Alignment logo_alignment;
+    int logo_margin;
+    unsigned int logo_width;
+    unsigned int logo_height;
+    char logo_opacity[PERCENT_MAX_CHARS];
     bool scroll_indicators;
     SDL_Color scroll_indicator_fill_color;
     int scroll_indicator_outline_size;

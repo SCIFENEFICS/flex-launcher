@@ -38,8 +38,11 @@ This fork keeps those Helios-specific changes together while remaining as compat
 - Configurable maximum number of launcher icons.
 - Configurable icon spacing.
 - Configurable row spacing.
+- Configurable interface logo with PNG and SVG support.
+- Configurable icon drop shadows (colour, opacity, blur and offset).
 - Improved keyboard navigation.
 - Improved controller navigation.
+- Improved page navigation that preserves the selected row when moving between pages.
 
 ### Clock
 
@@ -57,6 +60,18 @@ MaxButtons=8
 Rows=2
 RowSpacing=40
 IconSpacing=6%
+
+IconShadows=true
+IconShadowColor=#000000
+IconShadowOpacity=20%
+IconShadowBlur=12
+
+[Logo]
+LogoEnabled=true
+LogoImage=/usr/share/helios/icons/helios-white.svg
+LogoAlignment=Left
+LogoMargin=12
+LogoWidth=110
 
 [Clock]
 ClockDateFontSize=36

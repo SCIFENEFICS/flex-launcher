@@ -19,6 +19,7 @@ static bool parse_mode_setting(ModeSettingType type, const char *value, int *set
 static Menu *create_menu(const char *menu_name, size_t *num_menus);
 
 extern Config          config;
+extern Uint8           logo_alpha;
 extern GamepadControl  *gamepad_controls;
 extern Hotkey          *hotkeys;
 Menu                   *menu  = NULL;
@@ -192,6 +193,25 @@ int config_handler(void *user, const char *section, const char *name, const char
                     config.icon_spacing = icon_spacing;
             }
         }
+        else if (MATCH(name, SETTING_ICON_SHADOWS))
+            convert_bool(value, &config.icon_shadows);
+        else if (MATCH(name, SETTING_ICON_SHADOW_COLOR))
+            hex_to_color(value, &config.icon_shadow_color);
+        else if (MATCH(name, SETTING_ICON_SHADOW_OPACITY))
+            copy_string(
+                config.icon_shadow_opacity,
+                value,
+                sizeof(config.icon_shadow_opacity)
+            );
+        else if (MATCH(name, SETTING_ICON_SHADOW_OFFSET_X))
+            config.icon_shadow_offset_x = atoi(value);
+        else if (MATCH(name, SETTING_ICON_SHADOW_OFFSET_Y))
+            config.icon_shadow_offset_y = atoi(value);
+        else if (MATCH(name, SETTING_ICON_SHADOW_BLUR)) {
+            int blur = atoi(value);
+            if (blur >= 0 && blur <= 12)
+                config.icon_shadow_blur = blur;
+        }
         else if (MATCH(name, SETTING_VCENTER)) {
             if (is_percent(value))
                 copy_string(config.vcenter, value, sizeof(config.vcenter));
@@ -231,6 +251,45 @@ int config_handler(void *user, const char *section, const char *name, const char
         else if (MATCH(name, SETTING_BACKGROUND_OVERLAY_OPACITY)) {
             if (is_percent(value))
                 copy_string(config.background_overlay_opacity, value, sizeof(config.background_overlay_opacity));
+        }
+    }
+
+    else if (MATCH(section, "Logo")) {
+        if (MATCH(name, SETTING_LOGO_ENABLED))
+            convert_bool(value, &config.logo_enabled);
+        else if (MATCH(name, SETTING_LOGO_IMAGE)) {
+            free(config.logo_image);
+            config.logo_image = strdup(value);
+            clean_path(config.logo_image);
+        }
+        else if (MATCH(name, SETTING_LOGO_ALIGNMENT))
+            parse_mode_setting(
+                MODE_SETTING_ALIGNMENT,
+                value,
+                (int*) &config.logo_alignment
+            );
+        else if (MATCH(name, SETTING_LOGO_MARGIN)) {
+            int margin = atoi(value);
+            if (margin >= 0)
+                config.logo_margin = margin;
+        }
+        else if (MATCH(name, SETTING_LOGO_WIDTH)) {
+            int width = atoi(value);
+            if (width > 0)
+                config.logo_width = (unsigned int) width;
+        }
+        else if (MATCH(name, SETTING_LOGO_HEIGHT)) {
+            int height = atoi(value);
+            if (height >= 0)
+                config.logo_height = (unsigned int) height;
+        }
+        else if (MATCH(name, SETTING_LOGO_OPACITY)) {
+            if (is_percent(value))
+                copy_string(
+                    config.logo_opacity,
+                    value,
+                    sizeof(config.logo_opacity)
+                );
         }
     }
 
@@ -944,6 +1003,17 @@ void validate_settings(Geometry *geo)
             config.background_overlay_color.a = (Uint8) background_overlay_opacity;
     }
 
+    if (config.icon_shadow_opacity[0] != '\0') {
+        int icon_shadow_opacity = INVALID_PERCENT_VALUE;
+        convert_percent_to_int(
+            config.icon_shadow_opacity,
+            &icon_shadow_opacity,
+            255
+        );
+        if (icon_shadow_opacity != INVALID_PERCENT_VALUE)
+            config.icon_shadow_color.a = (Uint8) icon_shadow_opacity;
+    }
+
     if (config.highlight_fill_opacity[0] != '\0') {
         int highlight_fill_opacity = INVALID_PERCENT_VALUE;
         convert_percent_to_int(config.highlight_fill_opacity, &highlight_fill_opacity, 255);
@@ -969,6 +1039,18 @@ void validate_settings(Geometry *geo)
         convert_percent_to_int(config.clock_opacity, &clock_opacity, 255);
         if (clock_opacity != INVALID_PERCENT_VALUE)
             config.clock_font_color.a = (Uint8) clock_opacity;
+    }
+
+    if (config.logo_opacity[0] != '\0') {
+        int logo_opacity = INVALID_PERCENT_VALUE;
+        convert_percent_to_int(
+            config.logo_opacity,
+            &logo_opacity,
+            255
+        );
+
+        if (logo_opacity != INVALID_PERCENT_VALUE)
+            logo_alpha = (Uint8) logo_opacity;
     }
 
     // Set default IconSpacing if none is in the config file
