@@ -774,11 +774,10 @@ static void move_right(void)
         sync_highlight();
     }
 
-    // From the final entry, load the next page
-    else if (position == geo.num_buttons - 1 &&
-             current_menu->highlight_position +
-             current_menu->page * config.max_buttons <
-             current_menu->num_entries - 1) {
+    // From the right edge of either row, load the next page
+    else if (column == geo.columns - 1 &&
+             (current_menu->page + 1) * config.max_buttons <
+             current_menu->num_entries) {
         unsigned int buttons =
             current_menu->num_entries -
             (current_menu->page + 1) * config.max_buttons;
@@ -786,8 +785,12 @@ static void move_right(void)
         if (buttons > config.max_buttons)
             buttons = config.max_buttons;
 
-        current_entry = current_entry->next;
-        current_menu->root_entry = current_entry;
+        current_menu->root_entry = advance_entries(
+            current_menu->root_entry,
+            (int) config.max_buttons,
+            DIRECTION_RIGHT
+        );
+        current_entry = current_menu->root_entry;
         current_menu->page++;
         current_menu->highlight_position = 0;
 
