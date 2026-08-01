@@ -5,7 +5,8 @@ A lightweight, controller-friendly application launcher customised for Project H
 
 ---
 
-<img width="1272" height="788" alt="image" src="https://github.com/user-attachments/assets/395a12a5-68d3-4787-8d7b-499c7e8823bb" />
+<img width="1296" height="816" alt="image" src="https://github.com/user-attachments/assets/8b3c0af4-d9f9-44ed-a141-f5cdbd0e5eea" />
+
 
 
 ---
