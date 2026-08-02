@@ -20,6 +20,7 @@ static void init_sdl(void);
 static void init_sdl_image(void);
 static void create_window(void);
 static void init_sdl_ttf(void);
+static void init_status(void);
 static int load_menu(Menu *menu, bool set_back_menu, bool reset_position);
 static int load_menu_by_name(const char *menu_name, bool set_back_menu, bool reset_position);
 static void update_slideshow(void);
@@ -187,6 +188,9 @@ SDL_Texture *background_texture       = NULL;
 SDL_Texture *background_overlay       = NULL;
 SDL_Texture *logo_texture             = NULL;
 SDL_Rect logo_rect                    = {0, 0, 0, 0};
+SDL_Texture *status_texture           = NULL;
+SDL_Rect status_rect                  = {0, 0, 0, 0};
+TextInfo status_info;
 Uint8 logo_alpha                      = 255;
 int page_return_row                   = 0;
 Menu *default_menu                    = NULL;
@@ -347,6 +351,47 @@ static void init_sdl_ttf()
     geo.font_height = config.titles_enabled ? TTF_FontHeight(title_info.font) : 0;
 }
 
+
+// A function to load optional status text
+static void init_status()
+{
+    char path[1024];
+    snprintf(path, sizeof(path), "%s/.config/flex-launcher/status.txt", getenv("HOME"));
+
+    FILE *file = fopen(path, "r");
+    if (file == NULL)
+        return;
+
+    char text[256] = {0};
+
+    if (fgets(text, sizeof(text), file) == NULL) {
+        fclose(file);
+        return;
+    }
+
+    fclose(file);
+
+    text[strcspn(text, "\r\n")] = '\0';
+
+    if (strlen(text) == 0)
+        return;
+
+    status_info = title_info;
+    status_info.font_size = 24;
+
+    int height = 0;
+    status_texture = render_text_texture(
+        text,
+        &status_info,
+        &status_rect,
+        &height
+    );
+
+    status_rect.x = (geo.screen_width - status_rect.w) / 2;
+    status_rect.y = geo.screen_height - status_rect.h - 25;
+
+}
+
 // A function to close subsystems and free memory before quitting
 static void cleanup()
 {
@@ -354,6 +399,12 @@ static void cleanup()
     SDL_WaitThread(Slideshowhread, NULL);
     SDL_WaitThread(clock_thread, NULL);
     
+    // Destroy status texture
+    if (status_texture != NULL) {
+        SDL_DestroyTexture(status_texture);
+        status_texture = NULL;
+    }
+
     // Destroy renderer and window
     if (renderer != NULL) {
         SDL_DestroyRenderer(renderer);
@@ -1069,6 +1120,10 @@ static void draw_screen()
     else
         SDL_RenderFillRect(renderer, NULL);
 
+    // Draw optional status message.
+    if (status_texture != NULL)
+        SDL_RenderCopy(renderer, status_texture, NULL, &status_rect);
+
     // Output to screen
     SDL_RenderPresent(renderer);
     if (!config.vsync) {
@@ -1508,6 +1563,7 @@ int main(int argc, char *argv[])
     // Initialize Nanosvg, create window and renderer
     init_svg();
     create_window();
+    init_status();
 
     // Initialize timing
     ticks.main = SDL_GetTicks();

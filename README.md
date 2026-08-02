@@ -91,6 +91,18 @@ Applications are launched using the `Exec=` command defined in each `.desktop` f
 
 This behaviour is intentional because some applications and helper scripts require their original launch environment. Do not replace direct `Exec=` launching with alternative launch methods without testing all applications.
 
+## Helios Status Message
+
+The Helios edition supports an optional status message overlay.
+
+If:
+
+`~/.config/flex-launcher/status.txt`
+
+exists and contains text, Flex Launcher displays the message at the bottom centre of the screen.
+
+This is intended for Helios system notifications such as update availability.
+
 ## Installation and Documentation
 
 This README intentionally focuses on the Project Helios changes rather than duplicating the original Flex Launcher documentation.
