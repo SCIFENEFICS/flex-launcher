@@ -121,8 +121,20 @@ bool start_process(char *cmd, bool application)
             free(tmp);
             return false;
         }
-        exec = desktop.exec;
-        strip_field_codes(exec);
+        log_debug("Desktop file: %s", file);
+        log_debug("Desktop Exec raw: %s", desktop.exec);
+
+        free(desktop.exec);
+
+        size_t command_length = strlen(file) + 32;
+        exec = malloc(command_length);
+        if (exec == NULL) {
+            log_error("Could not allocate desktop launch command");
+            free(tmp);
+            return false;
+        }
+
+        snprintf(exec, command_length, "gio launch \"%s\"", file);
         cmd = exec;
     }
     free(tmp);

@@ -1125,6 +1125,7 @@ static void execute_command(const char *command)
     // Launch external application
     else {
         SDL_Delay(50);
+        log_debug("Executing entry command: %s", cmd);
         if (start_process(cmd, true)) {
             state.application_launching = true;
             ticks.application_launched = ticks.main;
