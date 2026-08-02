@@ -82,6 +82,15 @@ Existing Flex Launcher configuration remains supported where practical.
 
 ---
 
+
+## Helios Launch Behaviour
+
+The Helios edition uses standard desktop entry execution.
+
+Applications are launched using the `Exec=` command defined in each `.desktop` file.
+
+This behaviour is intentional because some applications and helper scripts require their original launch environment. Do not replace direct `Exec=` launching with alternative launch methods without testing all applications.
+
 ## Installation and Documentation
 
 This README intentionally focuses on the Project Helios changes rather than duplicating the original Flex Launcher documentation.
