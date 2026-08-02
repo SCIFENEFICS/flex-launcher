@@ -5,6 +5,7 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <signal.h>
+#include <errno.h>
 #include <SDL.h>
 #include <ini.h>
 #include "../launcher.h"
@@ -126,6 +127,7 @@ bool start_process(char *cmd, bool application)
     }
     free(tmp);
 
+    log_debug("Launching command: %s", cmd);
     // Fork new system shell process
     pid_t child_pid = fork();
     switch(child_pid) {
@@ -145,7 +147,8 @@ bool start_process(char *cmd, bool application)
                 NULL
             };
             execvp(file, (char* const*) args);
-            break;
+            log_error("execvp failed for '%s': %s", file, strerror(errno));
+            _exit(127);
 
         // Parent process
         default:
