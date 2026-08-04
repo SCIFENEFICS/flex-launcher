@@ -835,8 +835,8 @@ static void move_left(void)
         return;
     }
 
-    /* Wrap from the first entry to the final page. */
-    if (position == 0 && config.wrap_entries) {
+    /* Wrap from the left edge of either row to the final page. */
+    if (column == 0 && config.wrap_entries) {
         unsigned int num_pages =
             DIV_ROUND_UP(
                 current_menu->num_entries,
