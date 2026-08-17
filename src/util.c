@@ -408,10 +408,11 @@ int config_handler(void *user, const char *section, const char *name, const char
         }
         else if (MATCH(name, SETTING_CLOCK_FONT_SIZE)) {
             unsigned int font_size = (unsigned int) atoi(value);
-            if (font_size)
+            if (font_size) {
                 config.clock_font_size = font_size;
                 if (config.clock_date_font_size == (DEFAULT_CLOCK_FONT_SIZE * 45) / 100)
                     config.clock_date_font_size = (font_size * 45) / 100;
+            }
         }
         else if (MATCH(name, "ClockDateFontSize")) {
             unsigned int font_size = (unsigned int) atoi(value);

@@ -158,13 +158,19 @@ bool start_process(char *cmd, bool application)
         default:
             if (!application) 
                 return true;
-            int status;
+            int status = 0;
 
             // Check to see if the shell successfully launched
             SDL_Delay(10);
-            waitpid(child_pid, &status, WNOHANG);
-            if (WIFEXITED(status) && WEXITSTATUS(status) > 126) {
+            pid_t wait_result = waitpid(child_pid, &status, WNOHANG);
+            if (wait_result == -1) {
+                log_error("Could not inspect application process: %s", strerror(errno));
+                free(exec);
+                return false;
+            }
+            if (wait_result == child_pid && WIFEXITED(status) && WEXITSTATUS(status) > 126) {
                 log_error("Application failed to launch");
+                free(exec);
                 return false;
             }
             log_debug("Application launched successfully");
@@ -205,13 +211,23 @@ void scan_slideshow_directory(Slideshow *slideshow, const char *directory)
 
 void get_region(char *buffer)
 {
-    char *lang = getenv("LANG");
-    char *token = strtok(lang, "_");
-    if (token == NULL)
+    const char *lang = getenv("LANG");
+    if (lang == NULL)
         return;
-    token = strtok(NULL, ".");
-    if (token != NULL && strlen(token) == 2)
-        copy_string(buffer, token, 3);
+
+    const char *region = strchr(lang, '_');
+    if (region == NULL)
+        return;
+
+    region++;
+    const char *end = strchr(region, '.');
+    size_t length = end == NULL ? strlen(region) : (size_t) (end - region);
+
+    if (length == 2) {
+        buffer[0] = region[0];
+        buffer[1] = region[1];
+        buffer[2] = '\0';
+    }
 }
 
 // A function to shutdown the computer
