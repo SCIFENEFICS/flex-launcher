@@ -16,6 +16,8 @@
 #include "clock.h"
 #include "platform/platform.h"
 
+#define APPLICATION_REVEAL_DELAY_MS 500
+
 static void init_sdl(void);
 static void init_sdl_image(void);
 static void create_window(void);
@@ -183,6 +185,7 @@ State state = { false };
 
 // Global variables
 SDL_Window *window                    = NULL;
+SDL_Window *handoff_window            = NULL;
 SDL_Renderer *renderer                = NULL;
 SDL_Texture *background_texture       = NULL;
 SDL_Texture *background_overlay       = NULL;
@@ -251,7 +254,7 @@ static void create_window()
                  SDL_WINDOWPOS_UNDEFINED,
                  0,
                  0,
-                 SDL_WINDOW_FULLSCREEN_DESKTOP
+                 SDL_WINDOW_FULLSCREEN_DESKTOP | SDL_WINDOW_HIDDEN
              );
     if (window == NULL)
         log_fatal("Could not create SDL Window\n%s", SDL_GetError());
@@ -287,6 +290,26 @@ static void create_window()
     set_draw_color();
     SDL_RenderClear(renderer);
     SDL_RenderPresent(renderer);
+
+#ifdef __unix__
+    handoff_window = SDL_CreateWindow(
+        PROJECT_NAME " application handoff",
+        0,
+        0,
+        geo.screen_width,
+        geo.screen_height,
+        SDL_WINDOW_BORDERLESS | SDL_WINDOW_HIDDEN |
+        SDL_WINDOW_ALWAYS_ON_TOP | SDL_WINDOW_TOOLTIP
+    );
+    if (handoff_window == NULL)
+        log_fatal("Could not create application handoff window\n%s", SDL_GetError());
+
+    SDL_Surface *handoff_surface = SDL_GetWindowSurface(handoff_window);
+    if (handoff_surface == NULL)
+        log_fatal("Could not create application handoff surface\n%s", SDL_GetError());
+    SDL_FillRect(handoff_surface, NULL, SDL_MapRGB(handoff_surface->format, 0, 0, 0));
+    SDL_UpdateWindowSurface(handoff_window);
+#endif
 
 #ifdef _WIN32
     SDL_VERSION(&wm_info.version);
@@ -405,7 +428,11 @@ static void cleanup()
         status_texture = NULL;
     }
 
-    // Destroy renderer and window
+    // Destroy renderer and windows
+    if (handoff_window != NULL) {
+        SDL_DestroyWindow(handoff_window);
+        handoff_window = NULL;
+    }
     if (renderer != NULL) {
         SDL_DestroyRenderer(renderer);
         renderer = NULL;
@@ -1179,15 +1206,30 @@ static void execute_command(const char *command)
 
     // Launch external application
     else {
+        if (config.on_launch == ON_LAUNCH_BLANK) {
+            SDL_SetRenderDrawColor(renderer, 0, 0, 0, 0xFF);
+            SDL_RenderClear(renderer);
+            SDL_RenderPresent(renderer);
+#ifdef __unix__
+            SDL_ShowWindow(handoff_window);
+            SDL_RaiseWindow(handoff_window);
+#endif
+        }
+
         SDL_Delay(50);
         log_debug("Executing entry command: %s", cmd);
         if (start_process(cmd, true)) {
             state.application_launching = true;
             ticks.application_launched = ticks.main;
-            if (config.on_launch == ON_LAUNCH_BLANK)
-                SDL_SetRenderDrawColor(renderer, 0, 0, 0, 0xFF);
-            else if (config.on_launch == ON_LAUNCH_QUIT)
+            if (config.on_launch == ON_LAUNCH_QUIT)
                 quit(EXIT_SUCCESS);
+        }
+        else {
+#ifdef __unix__
+            if (config.on_launch == ON_LAUNCH_BLANK)
+                SDL_HideWindow(handoff_window);
+#endif
+            set_draw_color();
         }
     }
     free(cmd);
@@ -1741,10 +1783,14 @@ int main(int argc, char *argv[])
         debug_menu_entries(config.first_menu, config.num_menus);
     }
 
-    // Load the default menu and display it
+    // Load and render the default menu before revealing the window.
     error = load_menu(default_menu, false, true);
     if (error)
         log_fatal("Could not load default menu %s", config.default_menu);
+
+    draw_screen();
+    SDL_ShowWindow(window);
+    SDL_RaiseWindow(window);
 
     // Execute startup command
     if (config.startup_cmd != NULL)
@@ -1797,6 +1843,12 @@ int main(int argc, char *argv[])
                             state.application_launching = false;
                             state.application_running = true;
                             pre_launch();
+#ifdef __unix__
+                            if (config.on_launch == ON_LAUNCH_BLANK) {
+                                SDL_Delay(APPLICATION_REVEAL_DELAY_MS);
+                                SDL_HideWindow(handoff_window);
+                            }
+#endif
                         }
 #ifdef _WIN32
                         // Sometimes the launcher will lose focus on Windows when autostarting
@@ -1842,10 +1894,14 @@ int main(int argc, char *argv[])
         if (state.application_launching &&
         ticks.main - ticks.application_launched > config.application_timeout) {
             state.application_launching = false;
-            if (config.on_launch == ON_LAUNCH_BLANK)
+            if (config.on_launch == ON_LAUNCH_BLANK) {
+#ifdef __unix__
+                SDL_HideWindow(handoff_window);
+#endif
                 set_draw_color();
-    SDL_RenderClear(renderer);
-    SDL_RenderPresent(renderer);
+                SDL_RenderClear(renderer);
+                SDL_RenderPresent(renderer);
+            }
         }
         if (state.application_running)
             SDL_Delay(APPLICATION_WAIT_PERIOD);
