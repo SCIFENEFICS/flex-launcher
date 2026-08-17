@@ -16,11 +16,10 @@
 #include "clock.h"
 #include "platform/platform.h"
 
-#define APPLICATION_REVEAL_DELAY_MS 500
-
 static void init_sdl(void);
 static void init_sdl_image(void);
 static void create_window(void);
+static void show_loading_handoff(void);
 static void init_sdl_ttf(void);
 static void init_status(void);
 static int load_menu(Menu *menu, bool set_back_menu, bool reset_position);
@@ -44,6 +43,7 @@ static void draw_screen(void);
 static void handle_keypress(SDL_Keysym *key);
 static void execute_command(const char *command);
 static void poll_gamepad(void);
+static void poll_gamepad_home(void);
 static void init_gamepad(Gamepad **gamepad, int device_index);
 static void connect_gamepad(int device_index, bool open, bool raise_error);
 static void disconnect_gamepad(int id, bool disconnect, bool remove);
@@ -232,6 +232,7 @@ static void init_sdl()
 #endif
     SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "1");
     SDL_SetHint(SDL_HINT_VIDEO_ALLOW_SCREENSAVER, config.inhibit_os_screensaver ? "0" : "1");
+    SDL_SetHint(SDL_HINT_JOYSTICK_ALLOW_BACKGROUND_EVENTS, "1");
     if (config.gamepad_enabled)
         sdl_flags |= SDL_INIT_GAMECONTROLLER;
 
@@ -414,6 +415,45 @@ static void init_status()
     status_rect.y = geo.screen_height - status_rect.h - 25;
 
 }
+
+static void show_loading_handoff()
+{
+#ifdef __unix__
+    if (handoff_window == NULL)
+        return;
+
+    SDL_Surface *surface = SDL_GetWindowSurface(handoff_window);
+    if (surface == NULL)
+        return;
+
+    SDL_FillRect(
+        surface,
+        NULL,
+        SDL_MapRGB(surface->format, 0, 0, 0)
+    );
+
+    SDL_Color white = {255, 255, 255, 255};
+    SDL_Surface *text_surface =
+        TTF_RenderUTF8_Blended(title_info.font, "Loading...", white);
+
+    if (text_surface != NULL) {
+        SDL_Rect destination = {
+            (surface->w - text_surface->w) / 2,
+            (surface->h - text_surface->h) / 2,
+            text_surface->w,
+            text_surface->h
+        };
+
+        SDL_BlitSurface(text_surface, NULL, surface, &destination);
+        SDL_FreeSurface(text_surface);
+    }
+
+    SDL_UpdateWindowSurface(handoff_window);
+    SDL_ShowWindow(handoff_window);
+    SDL_RaiseWindow(handoff_window);
+#endif
+}
+
 
 // A function to close subsystems and free memory before quitting
 static void cleanup()
@@ -1210,10 +1250,7 @@ static void execute_command(const char *command)
             SDL_SetRenderDrawColor(renderer, 0, 0, 0, 0xFF);
             SDL_RenderClear(renderer);
             SDL_RenderPresent(renderer);
-#ifdef __unix__
-            SDL_ShowWindow(handoff_window);
-            SDL_RaiseWindow(handoff_window);
-#endif
+            show_loading_handoff();
         }
 
         SDL_Delay(50);
@@ -1373,6 +1410,44 @@ static void poll_gamepad()
     }
 }
 
+// Poll only Guide/Home while another application owns the screen.
+static void poll_gamepad_home()
+{
+    for (GamepadControl *i = gamepad_controls; i != NULL; i = i->next) {
+        if (i->type != TYPE_BUTTON ||
+            i->index != SDL_CONTROLLER_BUTTON_GUIDE)
+            continue;
+
+        bool pressed = false;
+
+        for (Gamepad *gamepad = gamepads;
+             gamepad != NULL;
+             gamepad = gamepad->next) {
+            if (gamepad->controller != NULL &&
+                SDL_GameControllerGetButton(
+                    gamepad->controller,
+                    SDL_CONTROLLER_BUTTON_GUIDE
+                )) {
+                pressed = true;
+                break;
+            }
+        }
+
+        if (!pressed) {
+            i->repeat = 0;
+            continue;
+        }
+
+        if (i->repeat == 0) {
+            i->repeat = 1;
+            log_debug("Gamepad Guide/Home detected while application is running");
+#ifdef __unix__
+            start_process("/usr/local/bin/helios-escape-close", false);
+#endif
+        }
+    }
+}
+
 // A function to update the slideshow
 static void update_slideshow()
 {
@@ -1506,11 +1581,11 @@ static void update_clock(bool block)
 
 static inline void pre_launch()
 {
+// Initialize exit hotkey for Windows
+#ifdef _WIN32
     if (gamepads != NULL)
         disconnect_gamepad(-1, true, false);
 
-// Initialize exit hotkey for Windows
-#ifdef _WIN32
     if (has_exit_hotkey())
         SDL_EventState(SDL_SYSWMEVENT, SDL_ENABLE);
 #endif
@@ -1523,8 +1598,10 @@ static inline void post_launch()
     ticks.last_input = ticks.main;
 
     // Post-application updates
+#ifdef _WIN32
     if (config.gamepad_enabled)
         connect_gamepad(-1, true, false);
+#endif
     if (config.clock_enabled)
         update_clock(true);
     if (config.background_mode == BACKGROUND_SLIDESHOW)
@@ -1822,7 +1899,7 @@ int main(int argc, char *argv[])
                     if (SDL_IsGameController(event.jdevice.which) == SDL_TRUE) {
                         log_debug("Gamepad connected with device index %i", event.jdevice.which);
                         if (config.gamepad_device < 0 || config.gamepad_device == event.jdevice.which)
-                            connect_gamepad(event.jdevice.which, !state.application_running, true);
+                            connect_gamepad(event.jdevice.which, true, true);
                     }
                     break;
 
@@ -1844,10 +1921,8 @@ int main(int argc, char *argv[])
                             state.application_running = true;
                             pre_launch();
 #ifdef __unix__
-                            if (config.on_launch == ON_LAUNCH_BLANK) {
-                                SDL_Delay(APPLICATION_REVEAL_DELAY_MS);
+                            if (config.on_launch == ON_LAUNCH_BLANK)
                                 SDL_HideWindow(handoff_window);
-                            }
 #endif
                         }
 #ifdef _WIN32
@@ -1891,6 +1966,9 @@ int main(int argc, char *argv[])
             if (config.clock_enabled)
                 update_clock(false);
         }
+        else if (gamepads != NULL)
+            poll_gamepad_home();
+
         if (state.application_launching &&
         ticks.main - ticks.application_launched > config.application_timeout) {
             state.application_launching = false;
